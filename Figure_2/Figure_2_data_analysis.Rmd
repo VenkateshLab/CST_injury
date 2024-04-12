@@ -1,0 +1,522 @@
+---
+title: "Figure_2"
+output: html_document
+date: "2024-01-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library('Seurat')
+library('ggplot2')
+library('plyr')
+library('dplyr')
+```
+
+```{r}
+#Input data and remove high- and low-count nuclei
+
+cCST_Uninj_1.data <- Read10X(data.dir = "1_SourceFiles/cCST_Uninj_1/")
+cCST_Uninj_1 <- CreateSeuratObject(counts = cCST_Uninj_1.data, project = "cCST_Uninj_1", 
+                                   min.cells = 3, min.features = 1000)
+cCST_Uninj_1
+
+VlnPlot(cCST_Uninj_1, features = c("nFeature_RNA"))
+cCST_Uninj_1 <- subset(cCST_Uninj_1, subset = nFeature_RNA > 2000 & nFeature_RNA < 8000)
+cCST_Uninj_1 
+
+#Cluster cCST_Uninj_1
+
+cCST_Uninj_1 <- NormalizeData(cCST_Uninj_1, normalization.method = "LogNormalize", scale.factor = 10000)
+
+cCST_Uninj_1 <- FindVariableFeatures(cCST_Uninj_1, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(cCST_Uninj_1)
+
+cCST_Uninj_1 <- ScaleData(cCST_Uninj_1, features = all.genes)
+
+cCST_Uninj_1 <- RunPCA(cCST_Uninj_1, features = VariableFeatures(object = cCST_Uninj_1), npcs = 100)
+
+cCST_Uninj_1 <- FindNeighbors(cCST_Uninj_1, dims = 1:30)
+
+cCST_Uninj_1 <- FindClusters(cCST_Uninj_1, resolution = 0.5)
+
+cCST_Uninj_1 <- RunUMAP(cCST_Uninj_1, dims = 1:30)
+
+DimPlot(cCST_Uninj_1, reduction = "umap", label = TRUE, pt.size = 1, label.size = 10
+) + NoLegend() +
+  theme(axis.text = element_text(size = 20),
+        text = element_text (size = 20))
+#Remove any artificially low cell count clusters, then recluster
+
+VlnPlot(cCST_Uninj_1, "nFeature_RNA", pt.size = 0) + NoLegend() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5)) +
+  theme(text = element_text(size = 20)) #1500 x 500
+
+#None are removed
+```
+
+
+```{r}
+### Identify CST and exclude non-CST cortical cells
+
+#Strategy is to use pan-cortical markers to determine which clusters are cortical,
+#then use a combination of positive and negative CST markers to identify any 
+#spurious cortical clusters, meaning definitively cortical but not CST
+
+#Pan-cortical markers: Mef2c, Camk2a, Ptk2b, Satb2
+#Positive CST markers: Crym, Fezf2, Bcl6
+#Negative CST markers: Slc30a3 (intracortical), Sulf1 (layer VI)
+#Upper layer markers: Cux2, Unc5d
+#Layer V but non-CST markers: Vwc2l, Dcc
+
+# A dotplot with the above markers
+
+DotPlot(cCST_Uninj_1, features = c("Mef2c", "Camk2a", "Ptk2b", "Satb2", 
+                                   "Crym", "Fezf2", "Bcl6", "Slc30a3", "Sulf1",
+                                   "Cux2","Unc5d","Vwc2l","Dcc"),
+        dot.scale = 4, dot.min = 0) + coord_flip() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5),
+        axis.text = element_text(size = 10)) #Sized for display
+
+#Clusters 5 and 6 are removed
+
+cCST_Uninj_1 <- subset(cCST_Uninj_1, idents = c("5", "6"), invert = TRUE)
+
+#Recluster
+
+cCST_Uninj_1 <- NormalizeData(cCST_Uninj_1, normalization.method = "LogNormalize", scale.factor = 10000)
+
+cCST_Uninj_1 <- FindVariableFeatures(cCST_Uninj_1, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(cCST_Uninj_1)
+
+cCST_Uninj_1 <- ScaleData(cCST_Uninj_1, features = all.genes)
+
+cCST_Uninj_1 <- RunPCA(cCST_Uninj_1, features = VariableFeatures(object = cCST_Uninj_1), npcs = 100)
+
+cCST_Uninj_1 <- FindNeighbors(cCST_Uninj_1, dims = 1:30)
+
+cCST_Uninj_1 <- FindClusters(cCST_Uninj_1, resolution = 0.5)
+
+cCST_Uninj_1 <- RunUMAP(cCST_Uninj_1, dims = 1:30)
+
+Idents(cCST_Uninj_1) <- "seurat_clusters"
+
+DimPlot(cCST_Uninj_1, reduction = "umap", label = TRUE, pt.size = 1, label.size = 10
+) + NoLegend() +
+  theme(axis.text = element_text(size = 20),
+        text = element_text (size = 20)) #2880 x 1500
+
+#Some visualizations
+
+FeaturePlot(cCST_Uninj_1, c("Creb5"), label = FALSE, pt.size = 1,
+            label.size = 5, repel = TRUE, order = TRUE, min.cutoff = 0,
+            max.cutoff = 6, cols = c("lightgrey", "red")) +
+  theme(text = element_text(size = 25),
+        axis.text = element_text(size = 40)) +
+  NoLegend() + NoAxes() #300 x 3000
+
+
+VlnPlot(cCST_Uninj_1, features = c("Atf3"))
+
+###Assign injury status to the dataset
+write.csv(x = cCST_Uninj_1@meta.data,
+          file = "cCST_Uninj_1_MD.csv",
+          quote = FALSE)
+```
+
+```{r}
+#The following commands read the csv file back into R, indicate the column that containst the 
+#cell identifier, and the inputs the data from the uploaded file into metadata.
+cCST_Uninj_1_injury.status <- read.csv("2_Input_Lists/cCST_Uninj_1_MD_back.csv", sep = ",")
+```
+
+
+```{r}
+rownames(cCST_Uninj_1_injury.status) <- cCST_Uninj_1_injury.status$CellID
+
+cCST_Uninj_1 <- AddMetaData(object = cCST_Uninj_1, metadata = cCST_Uninj_1_injury.status)
+
+#Check that it all worked:
+Idents (cCST_Uninj_1) <- "injury.status"
+levels (cCST_Uninj_1)
+```
+
+```{r}
+# INPUT CERVICAL INJURY CST, REPLICATE 1
+cSCI_7d_1.data <- Read10X(data.dir = "1_SourceFiles/cSCI_7d_1/")
+cSCI_7d_1 <- CreateSeuratObject(counts = cSCI_7d_1.data, project = "cSCI_7d_1", 
+                                min.cells = 3, min.features = 1000)
+cSCI_7d_1
+# Initially 2747
+VlnPlot(cSCI_7d_1, features = c("nFeature_RNA"))
+cSCI_7d_1 <- subset(cSCI_7d_1, subset = nFeature_RNA > 2000 & nFeature_RNA < 8000)
+cSCI_7d_1 
+cSCI_7d_1 <- NormalizeData(cSCI_7d_1, normalization.method = "LogNormalize", scale.factor = 10000)
+
+cSCI_7d_1 <- FindVariableFeatures(cSCI_7d_1, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(cSCI_7d_1)
+
+cSCI_7d_1 <- ScaleData(cSCI_7d_1, features = all.genes)
+
+cSCI_7d_1 <- RunPCA(cSCI_7d_1, features = VariableFeatures(object = cSCI_7d_1), npcs = 100)
+
+cSCI_7d_1 <- FindNeighbors(cSCI_7d_1, dims = 1:30)
+
+cSCI_7d_1 <- FindClusters(cSCI_7d_1, resolution = 0.5)
+
+cSCI_7d_1 <- RunUMAP(cSCI_7d_1, dims = 1:30)
+
+DimPlot(cSCI_7d_1, reduction = "umap", label = TRUE, pt.size = 1, label.size = 10
+) + NoLegend() +
+  theme(axis.text = element_text(size = 20),
+        text = element_text (size = 20)) #2880 x 1500
+
+
+#Remove any artificially low cell count clusters, then recluster
+
+FeaturePlot(cSCI_7d_1, c("nFeature_RNA"), label = TRUE, 
+            label.size = 5, repel = TRUE, order = TRUE) #500 x 500
+
+
+VlnPlot(cSCI_7d_1, "nFeature_RNA", pt.size = 0) + NoLegend() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5)) +
+  theme(text = element_text(size = 20)) #1500 x 500
+
+#None are removed
+```
+
+
+```{r}
+DotPlot(cSCI_7d_1, features = c("Mef2c", "Camk2a", "Ptk2b", "Satb2", 
+                                "Crym", "Fezf2", "Bcl6", "Slc30a3", "Sulf1",
+                                "Cux2","Unc5d","Vwc2l","Dcc"),
+        dot.scale = 4, dot.min = 0) + coord_flip() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5),
+        axis.text = element_text(size = 10)) #Sized for display
+
+#Clusters 4 and 6 are removed
+
+cSCI_7d_1 <- subset(cSCI_7d_1, idents = c("4", "6"), invert = TRUE)
+
+#Recluster
+
+cSCI_7d_1 <- NormalizeData(cSCI_7d_1, normalization.method = "LogNormalize", scale.factor = 10000)
+
+cSCI_7d_1 <- FindVariableFeatures(cSCI_7d_1, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(cSCI_7d_1)
+
+cSCI_7d_1 <- ScaleData(cSCI_7d_1, features = all.genes)
+
+cSCI_7d_1 <- RunPCA(cSCI_7d_1, features = VariableFeatures(object = cSCI_7d_1), npcs = 100)
+
+cSCI_7d_1 <- FindNeighbors(cSCI_7d_1, dims = 1:30)
+
+cSCI_7d_1 <- FindClusters(cSCI_7d_1, resolution = 0.5)
+
+cSCI_7d_1 <- RunUMAP(cSCI_7d_1, dims = 1:30)
+
+Idents(cSCI_7d_1) <- "seurat_clusters"
+
+DimPlot(cSCI_7d_1, reduction = "umap", label = TRUE, pt.size = 1, label.size = 10
+) + NoLegend() +
+  theme(axis.text = element_text(size = 20),
+        text = element_text (size = 20)) #2880 x 1500
+
+#Some visualizations
+
+FeaturePlot(cSCI_7d_1, c("Creb5"), label = FALSE, pt.size = 1,
+            label.size = 5, repel = TRUE, order = TRUE, min.cutoff = 0,
+            max.cutoff = 6, cols = c("lightgrey", "red")) +
+  theme(text = element_text(size = 25),
+        axis.text = element_text(size = 40)) +
+  NoLegend() + NoAxes() #300 x 3000
+
+
+VlnPlot(cSCI_7d_1, features = c("Atf3"))
+
+
+###Assign injury status to the dataset
+write.csv(x = cSCI_7d_1@meta.data,
+          file = "cSCI_7d_1_MD.csv",
+          quote = FALSE)
+#The following commands read the csv file back into R, indicate the column that contains the 
+#cell identifier, and the inputs the data from the uploaded file into metadata.
+
+cSCI_7d_1_injury.status <- read.csv("2_Input_Lists/cSCI_7d_1_MD_back.csv",
+                                    sep = ",")
+
+rownames(cSCI_7d_1_injury.status) <- cSCI_7d_1_injury.status$CellID
+
+cSCI_7d_1 <- AddMetaData(object = cSCI_7d_1, metadata = cSCI_7d_1_injury.status)
+
+#Check that it all worked:
+Idents (cSCI_7d_1) <- "injury.status"
+levels (cSCI_7d_1)
+```
+
+
+```{r}
+# INPUT CERVICAL INJURY CST, REPLICATE 2
+##########################################################################################################
+
+cSCI_7d_2.data <- Read10X(data.dir = "1_SourceFiles/cSCI_7d_2")
+cSCI_7d_2 <- CreateSeuratObject(counts = cSCI_7d_2.data, project = "cSCI_7d_2", 
+                                min.cells = 3, min.features = 1000)
+cSCI_7d_2
+# Initially 1705
+VlnPlot(cSCI_7d_2, features = c("nFeature_RNA"))
+cSCI_7d_2 <- subset(cSCI_7d_2, subset = nFeature_RNA > 2000 & nFeature_RNA < 8000)
+cSCI_7d_2 
+# Now 1577
+
+#Cluster cSCI_7d_2
+
+cSCI_7d_2 <- NormalizeData(cSCI_7d_2, normalization.method = "LogNormalize", scale.factor = 10000)
+
+cSCI_7d_2 <- FindVariableFeatures(cSCI_7d_2, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(cSCI_7d_2)
+
+cSCI_7d_2 <- ScaleData(cSCI_7d_2, features = all.genes)
+
+cSCI_7d_2 <- RunPCA(cSCI_7d_2, features = VariableFeatures(object = cSCI_7d_2), npcs = 100)
+
+cSCI_7d_2 <- FindNeighbors(cSCI_7d_2, dims = 1:30)
+
+cSCI_7d_2 <- FindClusters(cSCI_7d_2, resolution = 0.5)
+
+cSCI_7d_2 <- RunUMAP(cSCI_7d_2, dims = 1:30)
+
+DimPlot(cSCI_7d_2, reduction = "umap", label = TRUE, pt.size = 1, label.size = 10
+) + NoLegend() +
+  theme(axis.text = element_text(size = 20),
+        text = element_text (size = 20)) #2880 x 1500
+
+
+#Remove any artificially low cell count clusters, then recluster
+
+FeaturePlot(cSCI_7d_2, c("nFeature_RNA"), label = TRUE, 
+            label.size = 5, repel = TRUE, order = TRUE) #500 x 500
+
+
+VlnPlot(cSCI_7d_2, "nFeature_RNA", pt.size = 0) + NoLegend() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5)) +
+  theme(text = element_text(size = 20)) #1500 x 500
+DotPlot(cSCI_7d_2, features = c("Mef2c", "Camk2a", "Ptk2b", "Satb2", 
+                                "Crym", "Fezf2", "Bcl6", "Slc30a3", "Sulf1",
+                                "Cux2","Unc5d","Vwc2l","Dcc"),
+        dot.scale = 4, dot.min = 0) + coord_flip() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5),
+        axis.text = element_text(size = 10)) #Sized for display
+
+#Cluster 4 is removed as intracortical
+
+cSCI_7d_2 <- subset(cSCI_7d_2, idents = c("4"), invert = TRUE)
+
+#Recluster
+
+cSCI_7d_2 <- NormalizeData(cSCI_7d_2, normalization.method = "LogNormalize", scale.factor = 10000)
+
+cSCI_7d_2 <- FindVariableFeatures(cSCI_7d_2, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(cSCI_7d_2)
+
+cSCI_7d_2 <- ScaleData(cSCI_7d_2, features = all.genes)
+
+cSCI_7d_2 <- RunPCA(cSCI_7d_2, features = VariableFeatures(object = cSCI_7d_2), npcs = 100)
+
+cSCI_7d_2 <- FindNeighbors(cSCI_7d_2, dims = 1:30)
+
+cSCI_7d_2 <- FindClusters(cSCI_7d_2, resolution = 0.5)
+
+cSCI_7d_2 <- RunUMAP(cSCI_7d_2, dims = 1:30)
+
+Idents(cSCI_7d_2) <- "seurat_clusters"
+
+DimPlot(cSCI_7d_2, reduction = "umap", label = TRUE, pt.size = 1, label.size = 10
+) + NoLegend() +
+  theme(axis.text = element_text(size = 20),
+        text = element_text (size = 20)) #2880 x 1500
+
+#Some visualizations
+
+FeaturePlot(cSCI_7d_2, c("Dpysl5"), label = FALSE, pt.size = 1,
+            label.size = 5, repel = TRUE, order = TRUE, min.cutoff = 0,
+            max.cutoff = 6, cols = c("lightgrey", "red")) +
+  theme(text = element_text(size = 25),
+        axis.text = element_text(size = 40)) +
+  NoLegend() + NoAxes() #300 x 3000
+
+
+###Assign injury status to the dataset
+write.csv(x = cSCI_7d_2@meta.data,
+          file = "cSCI_7d_2_MD.csv",
+          quote = FALSE)
+
+cSCI_7d_2_injury.status <- read.csv("2_Input_Lists/cSCI_7d_2_MD_back.csv",
+                                    sep = ",")
+
+rownames(cSCI_7d_2_injury.status) <- cSCI_7d_2_injury.status$CellID
+
+cSCI_7d_2 <- AddMetaData(object = cSCI_7d_2, metadata = cSCI_7d_2_injury.status)
+
+#Check that it all worked:
+Idents (cSCI_7d_2) <- "injury.status"
+levels (cSCI_7d_2)
+```
+```{r}
+# Merge and Identify DEGs
+
+cSCI_merge.list <- list (cCST_Uninj_1,cSCI_7d_1,cSCI_7d_2)
+
+cSCI_merge.list <- lapply(X=cSCI_merge.list, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+features <- SelectIntegrationFeatures(object.list = cSCI_merge.list)
+
+cSCI_merge.anchors <- FindIntegrationAnchors(object.list = cSCI_merge.list,
+                                             anchor.features = features)
+
+cSCI_merge <- IntegrateData(anchorset = cSCI_merge.anchors)
+
+DefaultAssay(cSCI_merge) <- "integrated"
+
+cSCI_merge <- ScaleData(cSCI_merge, verbose = FALSE)
+
+cSCI_merge <- RunPCA(cSCI_merge, npcs = 50, verbose = FALSE)
+
+cSCI_merge <- RunUMAP(cSCI_merge, reduction = "pca", dims = 1:30)
+
+cSCI_merge <- FindNeighbors(cSCI_merge, reduction = "pca", dims = 1:30)
+
+cSCI_merge <- FindClusters(cSCI_merge, resolution = 0.5)
+
+DefaultAssay(cSCI_merge) <- "RNA"
+
+cSCI_merge <- NormalizeData(cSCI_merge, normalization.method = "LogNormalize", scale.factor = 10000)
+
+cSCI_merge <- FindVariableFeatures(cSCI_merge, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(cSCI_merge)
+
+cSCI_merge <- ScaleData(cSCI_merge, features = all.genes)
+
+cSCI_merge <- RunPCA(cSCI_merge, features = VariableFeatures(object = cSCI_merge), npcs = 50)
+
+cSCI_merge <- FindNeighbors(cSCI_merge, dims = 1:30)
+cSCI_merge <- FindClusters(cSCI_merge, resolution = 0.5)
+
+cSCI_merge <- RunUMAP(cSCI_merge, dims = 1:30)
+
+cSCI_merge
+
+DimPlot(cSCI_merge, group.by = 'seurat_clusters', split.by = 'orig.ident',
+        label = TRUE, label.size = 5) + NoLegend() # 1500 x 500
+
+DimPlot(cSCI_merge, group.by = 'seurat_clusters', split.by = 'injury.status',
+        label = TRUE, label.size = 5) + NoLegend() # 1500 x 500
+
+
+#Remove artificially low cell count clusters
+
+VlnPlot(cSCI_merge, "nFeature_RNA", pt.size = 0) + NoLegend() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5)) +
+  theme(text = element_text(size = 20)) #1500 x 500
+```
+
+```{r}
+#re-confirm CST identity
+
+DotPlot(cSCI_merge, features = c("Mef2c", "Camk2a", "Ptk2b", "Satb2", 
+                                 "Crym", "Fezf2", "Bcl6", "Slc30a3", "Sulf1",
+                                 "Cux2","Unc5d","Vwc2l","Dcc"),
+        dot.scale = 4, dot.min = 0) + coord_flip() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5),
+        axis.text = element_text(size = 10)) #Sized for display
+```
+
+
+```{r}
+
+DimPlot(cSCI_merge, group.by = 'injury.status', pt.size=1.5,
+        label = TRUE, label.size = 5) + NoLegend() # 1500 x 500
+
+
+FeaturePlot(cSCI_merge, c("Creb5"), label = TRUE, split.by = "orig.ident",
+            label.size = 5, repel = TRUE, order = TRUE) #500 x 500
+
+write.csv(x = cSCI_merge@meta.data,
+          file = "cSCI_merge_MD.csv",
+          quote = FALSE)
+
+cSCI_merge_injury.status.2 <- read.csv("2_Input_Lists/cSCI_merge_MD_back.csv",
+                                       sep = ",")
+
+rownames(cSCI_merge_injury.status.2) <- cSCI_merge_injury.status.2$CellID
+
+cSCI_merge <- AddMetaData(object = cSCI_merge, metadata = cSCI_merge_injury.status.2)
+
+#Check that it all worked:
+Idents (cSCI_merge) <- "injury.status.2"
+levels (cSCI_merge)
+```
+
+```{r}
+#Identify DEGs
+Idents(cSCI_merge) <- "injury.status"
+levels (cSCI_merge)
+cSCI_merge <- JoinLayers(cSCI_merge)
+
+cSCI_merge_All_Inj <- FindMarkers(cSCI_merge,
+                                  ident.1 = c("cSCI_7d"),
+                                  ident.2 = c("Uninjured"),
+                                  logfc.threshold = 0,
+                                  min.pct = 0.001)
+
+write.csv(x = cSCI_merge_All_Inj,
+          file = "cSCI_merge_All_Inj.csv",
+          quote = FALSE)
+
+#Strong_Responders versus uninjured
+
+Idents(cSCI_merge) <- "injury.status.2"
+levels (cSCI_merge)
+
+cSCI_merge_SR <- FindMarkers(cSCI_merge,
+                             ident.1 = c("Injured_high_Creb5"),
+                             ident.2 = c("Uninjured"),
+                             logfc.threshold = 0,
+                             min.pct = 0.01)
+
+write.csv(x = cSCI_merge_SR,
+          file = "cSCI_merge_hCreb5_Seurat5.csv",
+          quote = FALSE)
+
+#Low_Responders versus uninjured
+
+cSCI_merge_LR <- FindMarkers(cSCI_merge,
+                             ident.1 = c("Injured_low_Creb5"),
+                             ident.2 = c("Uninjured"),
+                             logfc.threshold = 0,
+                             min.pct = 0.01)
+
+write.csv(x = cSCI_merge_LR,
+          file = "cSCI_merge_lCreb5_Seurat5.csv",
+          quote = FALSE)
+
+# Save RDS files
+saveRDS(cCST_Uninj_1, "cCST_Uninj_1.rds")
+saveRDS(cSCI_7d_1, "cSCI_7d_1.rds")
+saveRDS(cSCI_7d_2, "cSCI_7d_2.rds")
+saveRDS(cSCI_merge, "cSCI_merge.rds")
+```
+
+

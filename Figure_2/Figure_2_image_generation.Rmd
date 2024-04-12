@@ -1,0 +1,322 @@
+---
+title: "Figure_2_images_generation"
+author: "Manoj"
+date: "2024-01-12"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+#Load the required library
+```{r}
+library('Seurat')
+library('ggplot2')
+library('plyr')
+library('dplyr')
+library('viridis')
+library('scCustomize')
+library('ggthemes')
+library('plotly')
+library('cowplot')
+```
+
+#load your RDS file
+```{r}
+cSCI_merge <- readRDS("cSCI_merge.rds")
+```
+
+
+```{r,tidy=TRUE}
+DimPlot_scCustom(seurat_object = cSCI_merge, group.by =  "injury.status.2", label = FALSE) 
+ggsave("Figure_2_Cluster_High_creb.png", height = 3, width = 6, units = "in", dpi = 300)
+```
+```{r}
+#DotPlot2 <- c("Mef2c", "Camk2a", "Ptk2b", "Satb2","Crym", "Fezf2", "Bcl6", "Slc30a3", "Sulf1","Cux2","Unc5d","Dcc")
+Idents(cSCI_merge)="injury.status.2"
+DotPlot2 <- c("Mef2c", "Camk2a", "Satb2","Crym", "Fezf2", "Bcl6")
+RidgePlot(cSCI_merge, features = DotPlot2, ncol = 3,cols = c("#EB984E","#7FB3D5","#9F68FA")) & theme_classic() & scale_x_continuous(limits = c(-1, 3.5), breaks = seq(-1, 3.5, by = 1))
+ggsave("ridgeplot.png",height = 8,width = 16,dpi = 300,units = "in",bg = "white") 
+```
+
+```{r,tidy=TRUE}
+Idents(cSCI_merge) <- "seurat_clusters"
+
+DimPlot(cSCI_merge, reduction = "umap", label = FALSE, pt.size = 1, 
+        label.size = 0, group.by =  "injury.status", cols = c("#EB984E","#7FB3D5"),alpha = 0.3, split.by = "injury.status",
+        order = FALSE
+) + NoLegend() + NoAxes() 
+ggsave("Figure_2_B.png",height = 3,width = 5,dpi = 300,units = "in")
+DimPlot(cSCI_merge, reduction = "umap", label = FALSE, pt.size = 1, 
+        label.size = 0, group.by =  "injury.status", cols = c("#EB984E","#7FB3D5"),alpha = 0.3,
+        order = FALSE
+) + NoLegend() + NoAxes() 
+ggsave("Figure_2_B_2.png",height = 3,width = 3,dpi = 300,units = "in")
+```
+
+
+
+
+```{r,tidy=TRUE}
+pal <- viridis(n = 10, option = "D")
+FeaturePlot_scCustom(seurat_object = cSCI_merge,pt.size = 1, features = "Bcl11b", colors_use = pal,split.by = "injury.status", order = T) & NoAxes() + theme(axis.text = element_text(size = 20),text = element_text (size = 20))
+ggsave("Figure_2_C_Bcl11b.png",height = 4,width = 8,dpi = 300,units = "in")
+```
+
+```{r,fig.height=8,fig.width=6, tidy=TRUE}
+DotPlot2 <- c("Mef2c", "Camk2a", "Ptk2b", "Satb2","Crym", "Fezf2", "Bcl6", "Slc30a3", "Sulf1","Cux2","Unc5d","Vwc2l","Dcc")
+DotPlot_scCustom (cSCI_merge, features = DotPlot2, dot.scale = 6, dot.min = .01,colors_use = pal) +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        axis.text = element_text(size = 15))
+ggsave("Figure_2_Dotplot.png",height = 14,width = 9,dpi = 300,units = "in",bg = "white")
+```
+
+```{r,tidy=TRUE}
+deg_data <- read.csv("cSCI_merge_All_Inj.csv")
+Volcano_filtered_data <- deg_data %>%
+  filter(!grepl("Rik", X), !grepl("^Gm", X),!grepl("Grik", X))
+
+p = ggplot(Volcano_filtered_data, aes(x=avg_log2FC, y=-log10(p_val_adj), color=ifelse(avg_log2FC > 1 & -log10(p_val_adj) > -log10(0.05), "green", ifelse(avg_log2FC < -1 & -log10(p_val_adj) > -log10(0.05), "red", "grey"))))+
+  geom_point(aes(text=paste("Gene_name:", X, "<br>FC:", avg_log2FC, "<br>P-value:", -log10(p_val_adj))), alpha=0.5) +
+  scale_color_identity() +
+  geom_hline(yintercept=-log10(0.05), color="blue", linetype="dashed") +
+  geom_vline(xintercept=0, color="black",alpha=0.7, linetype="dashed") +
+  #geom_vline(xintercept=1, color="grey", linetype="dashed") +
+  #geom_vline(xintercept=-1, color="grey", linetype="dashed") +
+  geom_vline(xintercept=-1, color="red", linetype="dashed") +
+  geom_vline(xintercept=1, color="green", linetype="dashed") +
+  labs(title="", x="Average log2 Fold Change", y="Adjusted P-value (log scale)") +
+  theme_few() +
+  theme(text = element_text(size = 30)) + # Increase size for y axis labels
+  scale_x_continuous(limits=c(-7, 7), breaks=seq(-7, 7, by=1)) + 
+p
+ggsave("Figure_2_Valcano_plot_1.png",height = 8, width = 8,dpi = 300,units = "in",bg = "white")
+write.csv(Volcano_filtered_data,"cSCI_GO.csv",row.names = F)
+```
+
+```{r,tidy=TRUE}
+p_interactive=ggplotly(p)
+htmlwidgets::saveWidget(p_interactive, file="VolcanoPlot_figure_1.html")
+```
+
+```{r,tidy=TRUE}
+#MA Plot
+# Add a new column for color based on avg_log2FC
+deg_data <- read.csv("cSCI_merge_All_Inj.csv")
+Volcano_filtered_data <- deg_data %>%
+  filter(!grepl("Rik", X), !grepl("^Gm", X),!grepl("Grik", X))
+average_expression <- rowMeans(Volcano_filtered_data[,c("pct.1", "pct.2")])
+Volcano_filtered_data$color <- ifelse(Volcano_filtered_data$avg_log2FC > 1 & Volcano_filtered_data$p_val_adj < 0.05, "green",
+                         ifelse(Volcano_filtered_data$avg_log2FC < -1 & Volcano_filtered_data$p_val_adj < 0.05, "red", "grey"))
+num_upregulated <- sum(Volcano_filtered_data$avg_log2FC > 1 & Volcano_filtered_data$p_val_adj < 0.05)
+num_downregulated <- sum(Volcano_filtered_data$avg_log2FC < -1 & Volcano_filtered_data$p_val_adj < 0.05)
+# Create an MA plot
+ma_plot <- ggplot(Volcano_filtered_data, aes(x=average_expression, y=avg_log2FC, color=color)) +
+  geom_point(alpha=0.5) +
+  scale_color_identity() +  # This will use the colors specified in the 'color' column
+  geom_hline( yintercept =  0, color="black",alpha=0.7, linetype="dashed") +
+  #geom_hline(yintercept = 1, color="grey", linetype="dashed") +
+  #geom_hline(yintercept = -1, color="grey", linetype="dashed") +
+  geom_hline(yintercept = 1, color="green", linetype="dashed") +
+  geom_hline(yintercept = -1, color="red", linetype="dashed") +
+  xlab(expression(bold("Average Expression"))) + ylab(expression(bold("Log2 Fold Change"))) +
+  #ggtitle("MA Plot") +
+  theme_few() +theme(text = element_text(size = 30)) + scale_y_continuous(limits=c(-7, 7), breaks=seq(-7, 7, by=1)) +
+  annotate("text", x = Inf, y = Inf, label = paste("Upregulated:", num_upregulated, "\nDownregulated:", num_downregulated), vjust=1.3, hjust=1.1, size=8, color="black")
+# Print the plot
+print(ma_plot)
+ggsave("Figure_2_MA_Plot_1.png",height = 7,width = 7,dpi = 300,units = "in",bg = "white")
+```
+#Histogram
+```{r}
+library(ggplot2)
+library(cowplot)
+```
+
+```{r,tidy=TRUE}
+deg_data <- Volcano_filtered_data
+# Define common aesthetics with continuous fill based on avg_log2FC
+common_aes <- aes(x=avg_log2FC, fill=avg_log2FC)
+
+# Define the color scale
+color_scale <- scale_fill_gradient2(low = "red", mid = "black", high = "green", 
+                                    midpoint = 0, limit = c(-7, 777),
+                                    breaks = c(-0.5, 0.5))
+
+# Define common theme
+common_theme <- theme_few() + theme(text = element_text(size = 20)) +
+                theme(axis.text = element_text(size=20),
+                      axis.title = element_text(size=20, face="bold"),
+                      plot.title = element_text(size=20, hjust = 0.5))
+
+# Adjust the size of the labels here
+label_size <- 3  # Increase this value to make the labels larger
+
+# Lower plot (zoomed-in version)
+p1 <- ggplot(deg_data, common_aes) + 
+   geom_histogram(binwidth=0.5, aes(fill = ifelse(avg_log2FC < -1 & p_val_adj < 0.05, "Red", ifelse(avg_log2FC > 1 & p_val_adj < 0.05, "Green", "Default"))), color="black", alpha=0.2, show.legend=FALSE) +
+  scale_fill_manual(values = c("Red" = "red", "Green" = "green", "Default" = "black")) +
+  geom_vline(xintercept = 0, color="black",alpha=0.2, linetype="dashed", linewidth=0.7) +
+  geom_vline(xintercept = 1, color="green", linetype="dashed", linewidth=0.7, alpha=0.5) +
+  geom_vline(xintercept = -1, color="red", linetype="dashed", linewidth=0.7, alpha=0.5) +
+  geom_text(stat='bin', aes(label=ifelse(..count.. >= 1, ..count.., "")), vjust=-0.8, size=label_size, binwidth=0.5, color="black", 
+            label.padding = unit(0.2, "lines"), label.size = 0.2, label.r = unit(0.15, "lines"), label.color = NA, fill="white") +
+  xlab("Log2 Fold Change") + ylab("Number of Genes") +
+  scale_x_continuous(breaks=seq(-7, 7, by=1), limits=c(-7, 7)) + 
+  coord_cartesian(ylim = c(0, 730)) + 
+  common_theme
+
+# Upper plot (for the range with fewer genes)
+p2 <- ggplot(deg_data, common_aes) + 
+   geom_histogram(binwidth=0.5, aes(fill = ifelse(avg_log2FC < -1 & p_val_adj < 0.05, "Red", ifelse(avg_log2FC > 1 & p_val_adj < 0.05, "Green", "Default"))), color="black", alpha=0.2, show.legend=FALSE) +
+  scale_fill_manual(values = c("Red" = "red", "Green" = "green", "Default" = "black")) +
+  geom_vline(xintercept = 0, color="black",alpha=0.2, linetype="dashed", linewidth=0.7) +
+  #geom_vline(xintercept = c(-1, 1), color="grey", linetype="dashed", linewidth=0.7, alpha=0.5) +
+  geom_vline(xintercept = 1, color="green", linetype="dashed", linewidth=0.7, alpha=0.5)+
+  geom_vline(xintercept = -1, color="red", linetype="dashed", linewidth=0.7, alpha=0.5)+
+  geom_text(stat='bin', aes(label=ifelse(..count.. >= 1000, ..count.., "")), vjust=-1.5, size=label_size, binwidth=0.5, color="black", 
+            label.padding = unit(0.2, "lines"), label.size = 0.2, label.r = unit(0.15, "lines"), label.color = NA, fill="white") +
+  coord_cartesian(ylim = c(2000, 12000)) + 
+  common_theme +
+  xlab("Log2 Fold Change") + ylab("Number of Genes") + 
+  scale_x_continuous(breaks=seq(-7, 7, by=1), limits=c(-7, 7)) + 
+  scale_y_continuous(breaks = seq(0,12000,by=1000)) +
+  annotate("text", x=-1.2, y=7500, label="Downregulated", size=6, color="red", angle= 90) +
+  annotate("text", x=1.2, y=7500, label="Upregulated", size=6, color="green", angle = 270) +
+  annotate("text", x=0, y=12000, label="No Change", size=6, color="blue", angle = 0)
+
+p3 <- p2 + 
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()) 
+p4 = p1 +
+  theme(axis.title.y = element_blank(),axis.text.x= element_text(angle = 90)) 
+
+# Combine the two plots with p1 at the bottom
+combined_plot <- plot_grid(p3, p4, ncol=1, align='v', rel_heights = c(2/3, 1/3))
+print(combined_plot)
+ggsave("Figure_2_Histogram_1.png",height = 6,width = 8,dpi = 300,units = "in",bg = "white")
+```
+```{r}
+write.csv(Volcano_filtered_data,"filter_data_heatmap.csv",row.names = F)
+```
+
+#heatmap
+```{r,fig.height=4, fig.width=9,tidy=TRUE}
+#top_50_genes <- head(deg_data[order(deg_data$p_val_adj),], 50)
+top_50_genes = read.csv("Heat_map_manual.csv")
+# Splitting the dataset into upregulated and downregulated
+#upregulated_genes <- deg_data[deg_data$avg_log2FC > 0, ]
+#downregulated_genes <- deg_data[deg_data$avg_log2FC < 0, ]
+
+# Sorting and selecting top 25 upregulated genes
+#top_25_upregulated <- head(upregulated_genes[order(upregulated_genes$avg_log2FC), ], 25)
+
+# Sorting and selecting top 25 downregulated genes
+#top_25_downregulated <- head(downregulated_genes[order(downregulated_genes$avg_log2FC), ], 25)
+
+# Combine both lists if needed
+#top_50_genes <- rbind(top_25_upregulated, top_25_downregulated)
+
+heatmap_plot <- ggplot(top_50_genes, aes(x = reorder(top_50_genes[[1]], avg_log2FC), y = 1, fill = avg_log2FC)) + 
+  geom_tile(color = "white") +  # Adding white border to the tiles
+  geom_text(aes(label = sprintf("%.2f", avg_log2FC)), vjust = 0.5, hjust = 0.5, color = "black", angle = 90) +
+  scale_fill_gradient2(low = "red", mid = "white", high = "green", midpoint = 0, limits = c(-4, 4)) +
+  labs(x = "", y = "", fill = "Log2FC") +
+  theme_few() + theme(text = element_text(size = 14)) +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.text.x = element_text(angle = 90,vjust = 0.5,hjust = 1),
+        axis.title.x = element_text(angle = 90, vjust = 0.5))
+heatmap_plot
+ggsave("Figure_2_Heatmap.png",height = 4,width = 8,dpi = 300,units = "in",bg = "white")
+```
+
+```{r}
+Idents(cSCI_merge) <- "seurat_clusters"
+
+DimPlot(cSCI_merge, reduction = "umap", label = FALSE, pt.size = 1, 
+        label.size = 0, group.by =  "injury.status.2", cols = c("#EB984E","#7FB3D5","#9F68FA"),alpha = 0.3, split.by = "injury.status.2",
+        order = FALSE
+) + NoLegend() + NoAxes() 
+ggsave("Supp_Figure_2.png",height = 3,width = 5,dpi = 300,units = "in")
+DimPlot(cSCI_merge, reduction = "umap", label = FALSE, pt.size = 1, 
+        label.size = 0, group.by =  "injury.status.2", cols = c("#EB984E","#7FB3D5","#9F68FA"),alpha = 0.3,
+        order = FALSE
+) + NoLegend() + NoAxes() 
+ggsave("Supp_Figure_2_B_2.png",height = 3,width = 3,dpi = 300,units = "in")
+```
+
+```{r}
+library(ggrepel)
+#MA Plot
+Volcano_filtered_data=read.csv("cSCI_merge_hCreb5_Seurat5.csv")
+# Add a new column for color based on avg_log2FC
+Volcano_filtered_data$mark <- ''  # Reset the column
+#Master Gene list
+specific_genes = c("Atf3","Jun","Stmn4")
+#specific_genes <- c("Tubb3","Tubb4a","Tubb5","Tubb2a","Tubb6","Tubb2b","Tubb4b","Stmn4","Stmn2","Stmn1","Stmn3","Bcam","Tcam1","Scamp5","Mcam","Vcam1","Icam1","Icam5","Ncam2","Icam4","Rarb","Nr5a2","stat3","Atf3","Jun","Klf6")  
+# List of genes you want to mark
+Volcano_filtered_data$mark[Volcano_filtered_data$X %in% specific_genes] <- 'specific_gene'
+Volcano_filtered_data$average_expression <- rowMeans(Volcano_filtered_data[,c("pct.1", "pct.2")])
+Volcano_filtered_data$color <- ifelse(Volcano_filtered_data$avg_log2FC >1 & Volcano_filtered_data$p_val_adj < 0.05, "green", ifelse(Volcano_filtered_data$avg_log2FC < -1 & Volcano_filtered_data$p_val_adj < 0.05, "red", "grey"))
+num_upregulated <- sum(Volcano_filtered_data$avg_log2FC > 1 & Volcano_filtered_data$p_val_adj < 0.05)
+num_downregulated <- sum(Volcano_filtered_data$avg_log2FC < -1 & Volcano_filtered_data$p_val_adj < 0.05)
+# Create an MA plot
+ma_plot <- ggplot(Volcano_filtered_data, aes(x=average_expression, y=avg_log2FC, color=color)) +
+  geom_point(alpha=0.5) +
+  geom_point(data=Volcano_filtered_data[Volcano_filtered_data$mark == 'specific_gene',], aes(x=average_expression, y=avg_log2FC), color="black", size=8, shape=21, fill=Volcano_filtered_data[Volcano_filtered_data$mark == 'specific_gene',]$color) +  # Add bordered points for specific genes
+  geom_text_repel(data = Volcano_filtered_data[Volcano_filtered_data$X %in% specific_genes, ], aes(label = X, x = average_expression, y = avg_log2FC), size=12, box.padding = 1, point.padding = 0.5, segment.color = 'black',color = "black") +  # Use ggrepel
+  scale_color_identity() +
+  geom_hline(yintercept = 0, color="black", alpha=0.7, linetype="dashed") +
+  geom_hline(yintercept = 1, color="green", linetype="dashed") +
+  geom_hline(yintercept = -1, color="red", linetype="dashed") +
+  xlab("Average Expression") + ylab("Log2 Fold Change") +
+  theme_few() +
+  #theme(text = element_text(size = 30)) + 
+  scale_y_continuous(limits=c(-6, 9), breaks=seq(-6, 9, by=1))+
+  annotate("text", x = Inf, y = Inf, label = paste("Upregulated:", num_upregulated, "\nDownregulated:", num_downregulated), vjust=1.3, hjust=1.1, size=12, color="black")
+# Print the plot
+print(ma_plot)
+ggsave("Figure_3_7D_MA_Plot.png",height = 7,width = 10,dpi = 300,units = "in",bg = "white")
+ggsave("Figure_2_MA_Plot_1.png",height = 7,width = 7,dpi = 300,units = "in",bg = "white")
+```
+
+```{r}
+deg_data <- read.csv("cSCI_merge_All_Inj.csv")
+Volcano_filtered_data <- deg_data %>%
+  filter(!grepl("Rik", X), !grepl("^Gm", X),!grepl("Grik", X))
+#MA Plot
+# Add a new column for color based on avg_log2FC
+average_expression <- rowMeans(Volcano_filtered_data[,c("pct.1", "pct.2")])
+Volcano_filtered_data$color <- ifelse(Volcano_filtered_data$avg_log2FC > 1 & Volcano_filtered_data$p_val_adj < 0.05, "green",
+                         ifelse(Volcano_filtered_data$avg_log2FC < -1 & Volcano_filtered_data$p_val_adj < 0.05, "red", "grey"))
+Volcano_filtered_data$color <- ifelse(Volcano_filtered_data$avg_log2FC >1 & Volcano_filtered_data$p_val_adj < 0.05, "green", ifelse(Volcano_filtered_data$avg_log2FC < -1 & Volcano_filtered_data$p_val_adj < 0.05, "red", "grey"))
+num_upregulated <- sum(Volcano_filtered_data$avg_log2FC > 1 & Volcano_filtered_data$p_val_adj < 0.05)
+num_downregulated <- sum(Volcano_filtered_data$avg_log2FC < -1 & Volcano_filtered_data$p_val_adj < 0.05)
+# Create an MA plot
+ma_plot <- ggplot(Volcano_filtered_data, aes(x=average_expression, y=avg_log2FC, color=color)) +
+  geom_point(alpha=0.5) +
+  scale_color_identity() +  # This will use the colors specified in the 'color' column
+  geom_hline( yintercept =  0, color="black",alpha=0.7, linetype="dashed") +
+  #geom_hline(yintercept = 1, color="grey", linetype="dashed") +
+  #geom_hline(yintercept = -1, color="grey", linetype="dashed") +
+  geom_hline(yintercept = 1, color="green", linetype="dashed") +
+  geom_hline(yintercept = -1, color="red", linetype="dashed") +
+  xlab("Average Expression") + ylab("Log2 Fold Change") +
+  #ggtitle("MA Plot") +
+  theme_few() +theme(text = element_text(size = 30)) + scale_y_continuous(limits=c(-4, 5), breaks=seq(-4, 5, by=1)) +
+  annotate("text", x = Inf, y = Inf, label = paste("Upregulated:", num_upregulated, "\nDownregulated:", num_downregulated), vjust=1.3, hjust=1.1, size=12, color="black")
+# Print the plot
+print(ma_plot)
+#ggsave("Figure_2_MA_Plot_L_creb.png",height = 7,width = 7,dpi = 300,units = "in",bg = "white")
+write.csv(Volcano_filtered_data,"All_creb_heatmap.csv",row.names = F)
+```
+```{r}
+Plot_Density_Custom(seurat_object = cSCI_merge, features = "Cmss1")
+```
+
