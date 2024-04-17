@@ -1,0 +1,261 @@
+---
+title: "Figure_5"
+author: "Manoj"
+date: "2024-04-17"
+output: html_document
+---
+
+```{r}
+library('Seurat')
+library('ggplot2')
+library('dplyr')
+```
+
+```{r}
+ICSC_3d_1.data <- Read10X(data.dir = "1_Source_Files")
+ICSC_3d_1 <- CreateSeuratObject(counts = ICSC_3d_1.data, project = "ICSC_3d_1", 
+                              min.cells = 3, min.features = 1000)
+ICSC_3d_1
+```
+
+```{r}
+VlnPlot(ICSC_3d_1, features = c("nFeature_RNA"))
+ICSC_3d_1 <- subset(ICSC_3d_1, subset = nFeature_RNA > 1000 & nFeature_RNA < 8000)
+ICSC_3d_1
+```
+
+
+```{r}
+ICSC_3d_1 <- NormalizeData(ICSC_3d_1, normalization.method = "LogNormalize", scale.factor = 10000)
+
+ICSC_3d_1 <- FindVariableFeatures(ICSC_3d_1, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(ICSC_3d_1)
+
+ICSC_3d_1 <- ScaleData(ICSC_3d_1, features = all.genes)
+
+ICSC_3d_1 <- RunPCA(ICSC_3d_1, features = VariableFeatures(object = ICSC_3d_1), npcs = 100)
+
+ICSC_3d_1 <- FindNeighbors(ICSC_3d_1, dims = 1:30)
+
+ICSC_3d_1 <- FindClusters(ICSC_3d_1, resolution = 0.5)
+
+ICSC_3d_1 <- RunUMAP(ICSC_3d_1, dims = 1:30)
+
+#A Dimplot just to get a sense of the cluster distribution
+DimPlot(ICSC_3d_1, reduction = "umap", label = TRUE, pt.size = 1, label.size = 10
+) + NoLegend() +
+  theme(axis.text = element_text(size = 20),
+        text = element_text (size = 20)) #2880 x 1500
+
+#Remove any artificially low cell count clusters, then recluster
+
+VlnPlot(ICSC_3d_1, "nFeature_RNA", pt.size = 0) + NoLegend() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5)) +
+  theme(text = element_text(size = 20)) #1500 x 500
+```
+
+```{r}
+ICSC_3d_1 <- subset(ICSC_3d_1, idents = c("7","8","10"), invert = TRUE)
+
+ICSC_3d_1
+```
+```{r}
+#recluster the remaining nuclei
+ICSC_3d_1 <- NormalizeData(ICSC_3d_1, normalization.method = "LogNormalize", scale.factor = 10000)
+
+ICSC_3d_1 <- FindVariableFeatures(ICSC_3d_1, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(ICSC_3d_1)
+
+ICSC_3d_1 <- ScaleData(ICSC_3d_1, features = all.genes)
+
+ICSC_3d_1 <- RunPCA(ICSC_3d_1, features = VariableFeatures(object = ICSC_3d_1), npcs = 100)
+
+ICSC_3d_1 <- FindNeighbors(ICSC_3d_1, dims = 1:30)
+
+ICSC_3d_1 <- FindClusters(ICSC_3d_1, resolution = 0.5)
+
+ICSC_3d_1 <- RunUMAP(ICSC_3d_1, dims = 1:30)
+
+#A Dimplot just to get a sense of the cluster distribution
+DimPlot(ICSC_3d_1, reduction = "umap", label = TRUE, pt.size = 1, label.size = 10
+) + NoLegend() +
+  theme(axis.text = element_text(size = 20),
+        text = element_text (size = 20)) #2880 x 1500
+```
+
+```{r}
+DotPlot(ICSC_3d_1, features = c("Mef2c", "Camk2a", "Ptk2b", "Satb2", 
+                                "Crym", "Fezf2", "Bcl6", "Slc30a3", "Sulf1",
+                                "Bcl11b","Cux2","Dcc","Unc5d","BC0F70"),
+        dot.scale = 4, dot.min = 0) + coord_flip() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5),
+        axis.text = element_text(size = 10)) #Sized for display
+
+#Based on this, clusters 7,8,9,and 10 are discarded for lacking standard layerV
+#markers and expressing other markers
+
+ICSC_3d_1 <- subset(ICSC_3d_1, idents = c("7","8","9","10"), invert = TRUE)
+
+ICSC_3d_1
+```
+
+```{r}
+#recluster remaining nuclei
+ICSC_3d_1 <- NormalizeData(ICSC_3d_1, normalization.method = "LogNormalize", scale.factor = 10000)
+
+ICSC_3d_1 <- FindVariableFeatures(ICSC_3d_1, selection.method = "vst", nfeatures = 2000)
+
+all.genes <- rownames(ICSC_3d_1)
+
+ICSC_3d_1 <- ScaleData(ICSC_3d_1, features = all.genes)
+
+ICSC_3d_1 <- RunPCA(ICSC_3d_1, features = VariableFeatures(object = ICSC_3d_1), npcs = 100)
+
+ICSC_3d_1 <- FindNeighbors(ICSC_3d_1, dims = 1:30)
+
+ICSC_3d_1 <- FindClusters(ICSC_3d_1, resolution = 0.5)
+
+ICSC_3d_1 <- RunUMAP(ICSC_3d_1, dims = 1:30)
+
+```
+
+```{r}
+#A Dimplot just to get a sense of the cluster distribution
+DimPlot(ICSC_3d_1, reduction = "umap", label = TRUE, pt.size = 1, label.size = 10
+) + NoLegend() +
+  theme(axis.text = element_text(size = 20),
+        text = element_text (size = 20)) #2880 x 1500
+
+#Dotplots and Vlnplots to see overall barcode distribution
+DotPlot(ICSC_3d_1, features = c("BC0", "BC102", "BC1"),
+        dot.scale = 4, dot.min = 0) + coord_flip() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5),
+        axis.text = element_text(size = 10)) #Sized for display
+
+VlnPlot(ICSC_3d_1, "BC0", pt.size = 0) + NoLegend() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5)) +
+  theme(text = element_text(size = 20)) #1500 x 500
+
+VlnPlot(ICSC_3d_1, "BC102", pt.size = 0) + NoLegend() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5)) +
+  theme(text = element_text(size = 20)) #1500 x 500
+
+VlnPlot(ICSC_3d_1, "BC1", pt.size = 0) + NoLegend() +
+  theme(axis.text.x = element_text(angle = 0, hjust = .5)) +
+  theme(text = element_text(size = 20)) #1500 x 500
+
+FeaturePlot(ICSC_3d_1, c("BC0"), label = TRUE,pt.size = 2,min.cutoff=0,
+            label.size = 5, repel = TRUE, order = TRUE) #500 x 500
+
+```
+```{r}
+DefaultAssay(ICSC_3d_1) <- "RNA"
+
+avgexp_ICSC_3d_1 <- AverageExpression(ICSC_3d_1, assay = 'RNA', 
+                                      features = rownames(ICSC_3d_1@assays$RNA$counts),
+                                      group.by = c('seurat_clusters'))
+
+write.csv(x = avgexp_ICSC_3d_1, 
+          file = "avgexp_ICSC_3d_1.csv",
+          quote = FALSE)
+
+
+#Find PERCENT of total reads that come from each barcode. 
+
+PercentageFeatureSet(ICSC_3d_1,pattern="BC0") -> ICSC_3d_1$percent.BC0
+PercentageFeatureSet(ICSC_3d_1,pattern="BC1") -> ICSC_3d_1$percent.BC1
+PercentageFeatureSet(ICSC_3d_1,pattern="BC102") -> ICSC_3d_1$percent.B102
+
+
+
+###Assign injury status to the dataset
+write.csv(x = ICSC_3d_1@meta.data,
+          file = "ICSC_3d_1_MD.csv",
+          quote = FALSE)
+
+```
+```{r}
+ICSC_3d_1_injury.status <- read.csv("2_Input_Lists/ICSC_3d_1_MD_back.csv",
+                                    sep = ",")
+rownames(ICSC_3d_1_injury.status) <- ICSC_3d_1_injury.status$CellID
+
+ICSC_3d_1 <- AddMetaData(object = ICSC_3d_1, metadata = ICSC_3d_1_injury.status)
+
+#Check that it all worked:
+Idents (ICSC_3d_1) <- "injury.status"
+levels (ICSC_3d_1)
+
+Idents (ICSC_3d_1) <- "barcode.ID"
+levels (ICSC_3d_1)
+
+
+#Some visualizations to check barcode, injury, and marker gene distribution
+
+FeaturePlot(ICSC_3d_1, c("Creb5"), label = TRUE,pt.size = 2,min.cutoff=0, split.by ="injury.status",
+            label.size = 5, repel = TRUE, order = TRUE) #500 x 500
+
+FeaturePlot(ICSC_3d_1, c("Creb5"), label = TRUE,pt.size = 2,min.cutoff=0, split.by ="barcode.ID",
+            label.size = 5, repel = TRUE, order = TRUE) #500 x 500
+
+DimPlot(ICSC_3d_1, reduction = "umap", label = TRUE, pt.size = 1,
+        group.by = "injury.status", label.size = 10
+) + NoLegend() +
+  theme(axis.text = element_text(size = 20),
+        text = element_text (size = 20)) #2880 x 1500
+
+DimPlot(ICSC_3d_1, reduction = "umap", label = TRUE, pt.size = 1,
+        group.by = "barcode.ID", label.size = 10
+) + NoLegend() +
+  theme(axis.text = element_text(size = 20),
+        text = element_text (size = 20)) #2880 x 1500
+```
+
+
+```{r}
+# A JoinLayers command is now required in Seurat v5
+ICSC_3d_1[["RNA"]] <- JoinLayers(ICSC_3d_1[["RNA"]])
+
+Idents(ICSC_3d_1) <- "injury.status"
+levels(ICSC_3d_1)
+
+```
+
+```{r}
+DimPlot(ICSC_3d_1, reduction = "umap", label = TRUE, pt.size = 1,
+        group.by = "injury.status", label.size = 10
+) + NoLegend() +
+  theme(axis.text = element_text(size = 20),
+        text = element_text (size = 20))
+```
+
+
+
+```{r}
+ICSC_3d_1_IC <- FindMarkers(ICSC_3d_1,
+                             ident.1 = c("Intracortical"),
+                             ident.2 = c("Uninjured"),
+                             logfc.threshold = 0,
+                             min.pct = 0.001)
+
+write.csv(x = ICSC_3d_1_IC,
+          file = "ICSC_3d_1_IC.csv",
+          quote = FALSE)
+
+
+ICSC_3d_1_SCI <- FindMarkers(ICSC_3d_1,
+                             ident.1 = c("Cervical_SCI"),
+                             ident.2 = c("Uninjured"),
+                             logfc.threshold = 0,
+                             min.pct = 0.001)
+
+write.csv(x = ICSC_3d_1_SCI,
+          file = "ICSC_3d_1_SCI.csv",
+          quote = FALSE)
+```
+
+```{r}
+saveRDS(ICSC_3d_1,"ICSC_3d_1.rds")
+```
+
